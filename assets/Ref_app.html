@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Ref App Pro - Correctif Scores & Flag</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        body { background-color: #000; color: #fff; font-family: sans-serif; -webkit-tap-highlight-color: transparent; }
+        .page { display: none; }
+        .page-active { display: block !important; }
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.98); z-index: 1000; padding: 20px; flex-direction: column; overflow-y: auto; }
+        input, select { background: #1a1a1a; border: 1px solid #333; color: white; border-radius: 12px; padding: 15px; width: 100%; }
+        .timeout-indicator { width: 30%; height: 12px; border-radius: 6px; background: #2563eb; border: 1px solid rgba(255,255,255,0.2); }
+        .timeout-used { background: #333 !important; opacity: 0.5; }
+        .ref-chip { padding: 10px; border-radius: 10px; background: #262626; border: 1px solid #404040; font-size: 11px; text-align: center; }
+        .ref-chip.active { background: #2563eb; border-color: #60a5fa; }
+    </style>
+</head>
+<body>
+
+    <div id="page-setup" class="page page-active p-6">
+        <h2 class="text-3xl font-black mb-8 text-blue-500 italic uppercase">Initialisation Match</h2>
+        <div class="space-y-4 mb-10">
+            <input type="text" id="in-h-name" placeholder="Équipe LOCALE">
+            <input type="text" id="in-v-name" placeholder="Équipe VISITEUR">
+            <button onclick="startApp()" class="w-full bg-blue-600 py-5 rounded-2xl font-black text-xl">DÉMARRER</button>
+        </div>
+    </div>
+
+    <div id="page-main" class="page">
+        <div class="bg-gray-900 p-4 sticky top-0 z-40 border-b border-gray-800 shadow-xl">
+            <div class="flex justify-between items-center mb-2">
+                <span id="qt-label" class="bg-blue-600 px-3 py-1 rounded-full text-xs font-black">QT 1</span>
+                <div id="timer-display" onclick="openTimeEdit()" class="text-5xl font-mono font-bold text-white cursor-pointer">12:00</div>
+                <div class="flex gap-2">
+                    <button onclick="undoLastLog()" class="text-orange-500 bg-gray-800 p-2 rounded-lg"><i data-lucide="rotate-ccw"></i></button>
+                    <button onclick="exportExcel()" class="text-green-500 bg-gray-800 p-2 rounded-lg"><i data-lucide="download"></i></button>
+                </div>
+            </div>
+
+            <div class="flex justify-center gap-6 mb-4">
+                <button onclick="startMatchTimer()" class="w-12 h-12 bg-green-600 rounded-full flex items-center justify-center"><i data-lucide="play" fill="white"></i></button>
+                <button onclick="stopMatchTimer()" class="w-12 h-12 bg-red-600 rounded-full flex items-center justify-center"><i data-lucide="pause" fill="white"></i></button>
+            </div>
+
+            <div class="flex justify-center items-center gap-4 mb-4 bg-zinc-800/50 py-2 rounded-2xl border border-zinc-700">
+                <div id="play-clock" class="text-4xl font-mono font-bold text-yellow-500">40</div>
+                <div class="flex gap-2">
+                    <button onclick="resetPlayClock(40)" class="bg-blue-600 px-3 py-2 rounded-lg text-xs font-bold">40s</button>
+                    <button onclick="resetPlayClock(25)" class="bg-blue-600 px-3 py-2 rounded-lg text-xs font-bold">25s</button>
+                    <button onclick="stopPlayClock()" class="bg-red-600 px-3 py-2 rounded-lg text-xs font-bold">STOP</button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div class="bg-zinc-950 border-2 border-blue-900 p-3 rounded-3xl text-center">
+                    <div id="disp-h-name" class="text-[10px] text-blue-400 font-black uppercase mb-1">LOCAUX</div>
+                    <div id="score-h" class="text-5xl font-black mb-2">0</div>
+                    <div class="flex justify-between gap-1" id="to-h-row">
+                        <div class="timeout-indicator" id="to-h-0" onclick="toggleTO('h', 0)"></div>
+                        <div class="timeout-indicator" id="to-h-1" onclick="toggleTO('h', 1)"></div>
+                        <div class="timeout-indicator" id="to-h-2" onclick="toggleTO('h', 2)"></div>
+                    </div>
+                </div>
+                <div class="bg-white text-black p-3 rounded-3xl text-center">
+                    <div id="disp-v-name" class="text-[10px] font-black uppercase mb-1">VISITEURS</div>
+                    <div id="score-v" class="text-5xl font-black mb-2">0</div>
+                    <div class="flex justify-between gap-1" id="to-v-row">
+                        <div class="timeout-indicator" id="to-v-0" onclick="toggleTO('v', 0)"></div>
+                        <div class="timeout-indicator" id="to-v-1" onclick="toggleTO('v', 1)"></div>
+                        <div class="timeout-indicator" id="to-v-2" onclick="toggleTO('v', 2)"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="p-4 space-y-4">
+            <button onclick="openFlagModal()" class="w-full py-8 bg-yellow-400 text-black font-black text-4xl rounded-3xl uppercase italic shadow-lg">FLAG</button>
+            
+            <div id="discipline-zone" class="grid grid-cols-2 gap-4">
+                <div id="cns-h" class="space-y-1"></div>
+                <div id="cns-v" class="space-y-1"></div>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-6">
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="scorePrompt('h', 6, 'TD')" class="bg-blue-900 py-4 rounded-xl font-bold text-xs col-span-2">TD (6)</button>
+                    <button onclick="scorePrompt('h', 3, 'FG')" class="bg-blue-800 py-3 rounded-xl font-bold text-xs">FG (3)</button>
+                    <button onclick="scorePrompt('h', 2, 'SAF')" class="bg-blue-700 py-3 rounded-xl font-bold text-xs">SAF (2)</button>
+                    <button onclick="scorePrompt('h', 0, 'EXT')" class="bg-blue-600 py-3 rounded-xl font-bold text-xs col-span-2">POINT EXTRA</button>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="scorePrompt('v', 6, 'TD')" class="bg-zinc-300 text-black py-4 rounded-xl font-bold text-xs col-span-2">TD (6)</button>
+                    <button onclick="scorePrompt('v', 3, 'FG')" class="bg-zinc-400 text-black py-3 rounded-xl font-bold text-xs">FG (3)</button>
+                    <button onclick="scorePrompt('v', 2, 'SAF')" class="bg-zinc-500 text-black py-3 rounded-xl font-bold text-xs">SAF (2)</button>
+                    <button onclick="scorePrompt('v', 0, 'EXT')" class="bg-zinc-600 text-white py-3 rounded-xl font-bold text-xs col-span-2">POINT EXTRA</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-time" class="modal justify-center items-center">
+        <div class="bg-zinc-900 p-6 rounded-3xl border border-blue-500 w-full max-w-xs">
+            <h3 class="text-center font-bold mb-4">RÉGLER LE TEMPS</h3>
+            <div class="flex gap-2 mb-6">
+                <input type="number" id="edit-min" placeholder="Min" class="text-center text-2xl">
+                <input type="number" id="edit-sec" placeholder="Sec" class="text-center text-2xl">
+            </div>
+            <button onclick="confirmTimeEdit()" class="w-full bg-green-600 py-4 rounded-xl font-bold">APPLIQUER</button>
+            <button onclick="closeModals()" class="w-full mt-2 text-gray-400 text-sm">Fermer</button>
+        </div>
+    </div>
+
+    <div id="modal-flag" class="modal">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-2xl font-black text-yellow-500 uppercase">Sanction</h2>
+            <button onclick="closeModals()" class="bg-red-600 px-4 py-2 rounded-lg font-bold">X</button>
+        </div>
+        <div class="space-y-4">
+            <div class="grid grid-cols-2 gap-2">
+                <button id="f-team-h" onclick="setFlagTeam('h')" class="py-3 rounded-xl bg-blue-900 border-2 border-blue-400 font-bold">LOCAL</button>
+                <button id="f-team-v" onclick="setFlagTeam('v')" class="py-3 rounded-xl bg-zinc-100 text-black font-bold">VISITEUR</button>
+            </div>
+            <select id="foul-select" class="text-sm"></select>
+            <div class="flex gap-2">
+                <input type="text" id="foul-custom" placeholder="Autre faute..." class="flex-1">
+                <button id="foul-is-cns" onclick="this.classList.toggle('bg-yellow-500'); this.classList.toggle('text-black')" class="px-4 bg-zinc-800 rounded-xl font-bold border border-yellow-500">CNS</button>
+            </div>
+            <input type="number" id="foul-player" placeholder="N° Joueur / Coach">
+            
+            <p class="text-[10px] font-bold text-gray-400 uppercase">Arbitres impliqués :</p>
+            <div class="grid grid-cols-4 gap-2" id="ref-grid">
+                <div class="ref-chip" onclick="this.classList.toggle('active')">AP</div>
+                <div class="ref-chip" onclick="this.classList.toggle('active')">JM</div>
+                <div class="ref-chip" onclick="this.classList.toggle('active')">JT</div>
+                <div class="ref-chip" onclick="this.classList.toggle('active')">JL</div>
+                <div class="ref-chip" onclick="this.classList.toggle('active')">JCA</div>
+                <div class="ref-chip" onclick="this.classList.toggle('active')">JCO</div>
+                <div class="ref-chip" onclick="this.classList.toggle('active')">JCH</div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-2 pt-6">
+                <button onclick="saveFlag('ACC')" class="bg-green-700 py-4 rounded-xl font-bold text-xs">ACCEPTÉ</button>
+                <button onclick="saveFlag('DEC')" class="bg-red-700 py-4 rounded-xl font-bold text-xs">DÉCLINÉ</button>
+                <button onclick="saveFlag('ANN')" class="bg-gray-700 py-4 rounded-xl font-bold text-xs">ANNULÉ</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-score" class="modal justify-center items-center">
+        <div class="bg-zinc-900 p-6 rounded-3xl border border-blue-500 w-full max-w-xs">
+            <h3 id="sc-title" class="text-center font-bold mb-4 uppercase">JOUEUR</h3>
+            <div id="sc-ext" class="hidden grid grid-cols-2 gap-2 mb-4">
+                <button onclick="setExt(1)" id="ex1" class="bg-blue-600 py-2 rounded-lg font-bold">EXT +1</button>
+                <button onclick="setExt(2)" id="ex2" class="bg-blue-800 py-2 rounded-lg font-bold">EXT +2</button>
+            </div>
+            <input type="number" id="sc-player" class="text-center text-3xl mb-4" placeholder="00">
+            <button onclick="confirmScore()" class="w-full bg-green-600 py-4 rounded-xl font-bold">VALIDER</button>
+        </div>
+    </div>
+
+    <script>
+        // Listing des fautes basé sur [cite: 1-54]
+        const FAUTES = ["APS | Altérer la surface","ATR | Aide au coureur","BAT | Balle rabattue","DEH | Saisie, défense","DOD | Délai, défense","DOF | Dépassement","DOG | Délai, attaque","DPI | Interférence passe, déf","DPI/AB | Bras","DPI/CO | Couper course","DPI/GA | Agripper","DPI/HT | Faire tourner","DPI/NB | Ne joue pas balle","DPI/PT | À travers","DSH | Délai mi-temps","DSQ | Expulsion","ENC | Empiètement","EQV | Equipement illégal","FGT | Bagarre","FST | Faux départ","IBB | Bloc dos","IBK | Bloc coup de pied","IBP | Passe arrière","IDP | Inéligible passe","IFD | Formation déf (3/1)","IFH | Trans. avant","IFK | Formation coup pied","IFP | Passe avant","IKB | Balle bottée","ILF | Formation illégale","ILM | Mouvement","ILP | Participation","ING | Rejet","IPR | Procédure","ISH | Permutation","ISP | Snap","ITP | Toucher illégal","IUH | Usage mains","IWK | Mur illégal","KCI | Interférence réception","KIK | Coup de pied","KOB | Coup pied libre HL","OBK | Joueur en touche","OFK | Dépassement équipe pied","OH | Saisie attaque","OH/GR | Agripper","OH/HR | Encercler","OH/TD | Emmener sol","OPI | Interférence passe, att","OPI/BF | Bloc arrière-champ","OPI/DT | Jouer à travers","OPI/PO | Séparation","PF/BBW | Bloc ceinture","PF/BOB | Bloc HL","PF/BSB | Bloc aveugle","PF/BTH | Coup tête","PF/CHB | Tenaille","PF/CLP | Fauchage","PF/FMM | Grille","PF/HCT | Col","PF/HDR | Sans défense","PF/HTF | Main visage","PF/HUR | Franchissement","PF/ICS | Contact snapper","PF/LEA | Sauter dessus","PF/LHP | Empilement","PF/LTO | Retardement HL","PF/OTH | Autre personnelle","PF/RFK | Brutalité botteur","PF/RTH | Brutalité placeur","PF/RTK | Brutalité botteur","PF/RTP | Brutalité passeur","PF/SKE | Bras/genou/épaule","PF/TGT | Targeting","PF/TRP | Croche-patte","PF/UNR | Brutalité non nécessaire","RNH | Placeur","RNK | Botteur","SLI | Touche 5y","SLM | Touche 15y","SLW | Touche avert.","SUB | Substitution","UC/ABL | Langage abusif","UC/BCH | Banc","UC/DEA | Excessif","UC/FCO | Contact arbitre","UC/RHT | Enlever casque","UC/SBR | Simuler","UC/STB | Jeter balle","UC/TAU | Chambrer","UC/UNS | Autres CNS","UFA | Acte déloyal","UFT | Tactique déloyale"];
+
+        let state = {
+            h: { name: "LOCAL", score: 0, cns: {} },
+            v: { name: "VISITEUR", score: 0, cns: {} },
+            qt: 1, currentTime: 12*60, matchTimer: null,
+            playClock: 40, playClockTimer: null,
+            logs: [], pending: null, activeFlagTeam: 'h'
+        };
+
+        function startApp() {
+            state.h.name = document.getElementById('in-h-name').value || "LOCAL";
+            state.v.name = document.getElementById('in-v-name').value || "VISITEUR";
+            document.getElementById('disp-h-name').innerText = state.h.name;
+            document.getElementById('disp-v-name').innerText = state.v.name;
+            const sel = document.getElementById('foul-select');
+            sel.innerHTML = '<option value="">-- Sélectionner Faute --</option>';
+            FAUTES.forEach(f => sel.innerHTML += `<option value="${f.split(' | ')[0]}">${f}</option>`);
+            showPage('main');
+        }
+
+        // --- HORLOGE MATCH ---
+        function startMatchTimer() { if(!state.matchTimer) state.matchTimer = setInterval(() => { if(state.currentTime > 0) { state.currentTime--; updateMatchDisplay(); } else { finishQT(); } }, 1000); }
+        function stopMatchTimer() { clearInterval(state.matchTimer); state.matchTimer = null; }
+        function updateMatchDisplay() { const m = Math.floor(state.currentTime / 60), s = state.currentTime % 60; document.getElementById('timer-display').innerText = `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`; }
+        function openTimeEdit() { stopMatchTimer(); document.getElementById('edit-min').value = Math.floor(state.currentTime / 60); document.getElementById('edit-sec').value = state.currentTime % 60; document.getElementById('modal-time').style.display = 'flex'; }
+        function confirmTimeEdit() { state.currentTime = (parseInt(document.getElementById('edit-min').value)*60) + parseInt(document.getElementById('edit-sec').value); updateMatchDisplay(); closeModals(); }
+
+        // --- PLAY CLOCK ---
+        function resetPlayClock(val) { clearInterval(state.playClockTimer); state.playClock = val; document.getElementById('play-clock').innerText = val; state.playClockTimer = setInterval(() => { if(state.playClock > 0) { state.playClock--; document.getElementById('play-clock').innerText = state.playClock; } else { clearInterval(state.playClockTimer); } }, 1000); }
+        function stopPlayClock() { clearInterval(state.playClockTimer); state.playClockTimer = null; }
+
+        // --- MODULE FLAG ---
+        function openFlagModal() { stopMatchTimer(); document.getElementById('modal-flag').style.display = 'flex'; }
+        function saveFlag(decision) {
+            const refs = []; document.querySelectorAll('.ref-chip.active').forEach(c => refs.push(c.innerText));
+            const foul = document.getElementById('foul-select').value || document.getElementById('foul-custom').value;
+            const player = document.getElementById('foul-player').value || "Coach";
+            const isCNS = document.getElementById('foul-is-cns').classList.contains('bg-yellow-500');
+            state.logs.push({ Type: "FAUTE", QT: state.qt, Equipe: state[state.activeFlagTeam].name, Faute: foul, Joueur: player, Arbitres: refs.join(', '), Decision: decision });
+            if(isCNS && decision === 'ACC') { state[state.activeFlagTeam].cns[player] = (state[state.activeFlagTeam].cns[player] || 0) + 1; updateDisciplineUI(); }
+            resetFlagUI(); closeModals();
+        }
+        function updateDisciplineUI() { ['h','v'].forEach(t => { const div = document.getElementById(`cns-${t}`); div.innerHTML = ""; for(let p in state[t].cns) { const cnt = state[t].cns[p]; div.innerHTML += `<div class="p-1 rounded ${cnt>=2?'bg-red-600':'bg-yellow-500 text-black'} font-bold text-[10px]">#${p}: ${cnt} CNS</div>`; } }); }
+
+        // --- SCORES ---
+        function scorePrompt(team, pts, type) { stopMatchTimer(); state.pending = {team, pts, type}; document.getElementById('sc-ext').classList.toggle('hidden', type !== 'EXT'); document.getElementById('modal-score').style.display = 'flex'; }
+        function setExt(v) { state.pending.pts = v; document.getElementById('ex1').className = v===1?'bg-blue-400 py-2 rounded-lg font-bold':'bg-blue-600 py-2 rounded-lg font-bold'; document.getElementById('ex2').className = v===2?'bg-blue-400 py-2 rounded-lg font-bold':'bg-blue-800 py-2 rounded-lg font-bold'; }
+        function confirmScore() {
+            const p = state.pending, num = document.getElementById('sc-player').value || "??";
+            state[p.team].score += p.pts; document.getElementById(`score-${p.team}`).innerText = state[p.team].score;
+            state.logs.push({Type:"SCORE", QT:state.qt, Equipe:state[p.team].name, Pts:p.pts, Action:p.type, Joueur:num, Temps: document.getElementById('timer-display').innerText});
+            closeModals();
+        }
+
+        // --- OUTILS ---
+        function undoLastLog() { if(state.logs.length === 0) return; const last = state.logs.pop(); if(last.Type === "SCORE") { const team = last.Equipe === state.h.name ? 'h' : 'v'; state[team].score -= last.Pts; document.getElementById(`score-${team}`).innerText = state[team].score; } alert("Dernier log annulé"); }
+        function finishQT() { stopMatchTimer(); if(window.navigator.vibrate) window.navigator.vibrate(500); alert("FIN DU QUART-TEMPS"); if(state.qt < 4) { state.qt++; state.currentTime = 12*60; document.getElementById('qt-label').innerText = "QT " + state.qt; if(state.qt === 3) resetTOs(); updateMatchDisplay(); } }
+        function showPage(id) { document.querySelectorAll('.page').forEach(p => p.classList.remove('page-active')); document.getElementById('page-'+id).classList.add('page-active'); lucide.createIcons(); }
+        function closeModals() { document.querySelectorAll('.modal').forEach(m => m.style.display = 'none'); }
+        function setFlagTeam(t) { state.activeFlagTeam = t; document.getElementById('f-team-h').className = t==='h'?'py-3 rounded-xl bg-blue-900 border-2 border-blue-400 font-bold':'py-3 rounded-xl bg-zinc-800 font-bold'; document.getElementById('f-team-v').className = t==='v'?'py-3 rounded-xl bg-zinc-100 text-black border-2 border-blue-400 font-bold':'py-3 rounded-xl bg-zinc-100 text-black font-bold'; }
+        function toggleTO(team, idx) { stopMatchTimer(); document.getElementById(`to-${team}-${idx}`).classList.toggle('timeout-used'); }
+        function resetTOs() { document.querySelectorAll('.timeout-indicator').forEach(el => el.classList.remove('timeout-used')); }
+        function resetFlagUI() { document.getElementById('foul-select').value = ""; document.getElementById('foul-player').value = ""; document.querySelectorAll('.ref-chip').forEach(c => c.classList.remove('active')); }
+        function exportExcel() { const ws = XLSX.utils.json_to_sheet(state.logs), wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Match"); XLSX.writeFile(wb, "Rapport_Match.xlsx"); }
+        window.onload = () => lucide.createIcons();
+    </script>
+</body>
+</html>
