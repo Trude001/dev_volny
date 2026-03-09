@@ -22,7 +22,7 @@
     </style>
 </head>
 <body>
-
+<!--Page d'initialisation de match-->
     <div id="page-setup" class="page page-active p-6">
         <h1 class="text-3xl font-black mb-8 text-blue-500 uppercase">Carton de match numérique et Horloges</h1>
         <img src="images/favicon.png" alt="French Zebres">
@@ -40,6 +40,39 @@
         </div>
     </div>
 
+<!--Page de Toss-->
+<div id="page-toss" class="page p-6">
+    <h2 class="text-3xl font-black mb-6 text-blue-500 italic uppercase">Tirage au Sort (TOSS)</h2>
+    <div class="space-y-6">
+        <div class="bg-zinc-900 p-4 rounded-xl border border-zinc-700">
+            <p class="text-sm text-gray-400 mb-2">Appel Visiteur :</p>
+            <div class="grid grid-cols-2 gap-4">
+                <button onclick="setTossCall('Pile')" id="btn-pile" class="bg-zinc-800 py-3 rounded-xl font-bold border border-zinc-600">PILE</button>
+                <button onclick="setTossCall('Face')" id="btn-face" class="bg-zinc-800 py-3 rounded-xl font-bold border border-zinc-600">FACE</button>
+            </div>
+        </div>
+
+        <div class="bg-zinc-900 p-4 rounded-xl border border-zinc-700">
+            <p class="text-sm text-gray-400 mb-2">Gagnant du Toss :</p>
+            <div class="grid grid-cols-2 gap-4">
+                <button onclick="setTossWinner('v')" id="win-v" class="bg-zinc-800 py-3 rounded-xl font-bold italic">VISITEUR</button>
+                <button onclick="setTossWinner('h')" id="win-h" class="bg-zinc-800 py-3 rounded-xl font-bold italic">LOCAL</button>
+            </div>
+        </div>
+
+        <div id="toss-choices" class="hidden space-y-4">
+            <p class="text-sm text-yellow-500 font-bold uppercase">Choix du gagnant :</p>
+            <div class="grid grid-cols-2 gap-3">
+                <button onclick="applyTossChoice('Recevoir')" class="bg-blue-600 py-4 rounded-xl font-bold text-xs">RECEVOIR</button>
+                <button onclick="applyTossChoice('Kicker')" class="bg-blue-600 py-4 rounded-xl font-bold text-xs">KICKER</button>
+                <button onclick="applyTossChoice('Terrain')" class="bg-blue-600 py-4 rounded-xl font-bold text-xs">CÔTÉ TERRAIN</button>
+                <button onclick="applyTossChoice('Report')" class="bg-blue-900 py-4 rounded-xl font-bold text-xs text-yellow-400">REPORT (2ème MT)</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!--Page principale durant le match avec horloges, score et fautes-->
     <div id="page-main" class="page">
         <div class="bg-gray-900 p-4 sticky top-0 z-40 border-b border-gray-800 shadow-xl">
             <h2 class="text-2xl font-black text-yellow-500 uppercase">Horloge de Match</h2>
@@ -118,6 +151,52 @@
         </div>
     </div>
 
+<!--Page de mi temps -->
+    <div id="page-halftime" class="page p-6 text-center">
+        <h2 class="text-4xl font-black text-blue-500 mb-4 italic">MI-TEMPS</h2>
+        <div id="ht-timer" class="text-7xl font-mono font-bold mb-8">15:00</div>
+        <div class="bg-zinc-900 p-6 rounded-3xl border border-yellow-500 mb-6 text-left">
+            <h3 class="font-bold text-yellow-500 mb-4 uppercase">Toss 2ème Mi-Temps</h3>
+            <p id="ht-toss-info" class="text-sm mb-4 text-gray-300"></p>
+            <div class="grid grid-cols-1 gap-3">
+                <button onclick="applyHTChoice('Recevoir')" class="bg-blue-600 py-4 rounded-xl font-bold">RECEVOIR</button>
+                <button onclick="applyHTChoice('Kicker')" class="bg-blue-600 py-4 rounded-xl font-bold">KICKER</button>
+                <button onclick="applyHTChoice('Terrain')" class="bg-blue-600 py-4 rounded-xl font-bold">CÔTÉ TERRAIN</button>
+            </div>
+        </div>
+        <button onclick="resumeAfterHalftime()" class="w-full bg-green-600 py-4 rounded-xl font-black">REPRENDRE LE MATCH</button>
+    </div>
+<!-- Page de fin de match résumé du match-->
+    <div id="page-summary" class="page p-6">
+        <h2 class="text-3xl font-black text-blue-500 mb-6 italic uppercase">Résumé du Match</h2>
+        <div class="space-y-4 text-sm">
+            <div class="bg-zinc-900 p-4 rounded-xl border border-blue-500">
+                <div class="flex justify-between text-xl font-bold mb-2">
+                    <span id="sum-h-name">LOCAL</span>
+                    <span id="sum-final-score">0 - 0</span>
+                    <span id="sum-v-name">VISITEUR</span>
+                </div>
+                <p class="text-[10px] text-gray-500 italic">
+                    Début : <span id="time-start">--:--</span> | Fin : <span id="time-end">--:--</span>
+                </p>
+            </div>
+            
+            <div class="bg-zinc-900 p-4 rounded-xl">
+                <h4 class="font-bold text-blue-400 mb-2 uppercase text-xs">Chronologie des Points</h4>
+                <div id="sum-points" class="space-y-1 max-h-40 overflow-y-auto"></div>
+            </div>
+
+            <div class="bg-zinc-900 p-4 rounded-xl">
+                <h4 class="font-bold text-yellow-500 mb-2 uppercase text-xs">Journal des Fautes</h4>
+                <div id="sum-fouls" class="space-y-1 max-h-40 overflow-y-auto"></div>
+            </div>
+
+            <button onclick="exportExcel()" class="w-full bg-green-600 py-4 rounded-2xl font-black flex items-center justify-center gap-2">
+                <i data-lucide="download"></i> EXPORTER CSV (EXCEL)
+            </button>
+        </div>
+    </div>
+
     <div id="modal-time" class="modal justify-center items-center">
         <div class="bg-zinc-900 p-6 rounded-3xl border border-blue-500 w-full max-w-xs">
             <h3 class="text-center font-bold mb-4">RÉGLER LE TEMPS</h3>
@@ -193,19 +272,17 @@
             v: { name: "VISITEUR", score: 0, cns: {} },
             qt: 1, currentTime: 12*60, matchTimer: null,
             playClock: 40, playClockTimer: null,
-            logs: [], pending: null, activeFlagTeam: 'h'
-        };
+            logs: [], pending: null, activeFlagTeam: 'h'};
 
         function startApp() {
             state.h.name = document.getElementById('in-h-name').value || "LOCAL";
             state.v.name = document.getElementById('in-v-name').value || "VISITEUR";
             document.getElementById('disp-h-name').innerText = state.h.name;
-            document.getElementById('disp-v-name').innerText = state.v.name;
+            document.getElementById('qt-label').innerText = "QT " + state.qt;updateMatchDisplay();
             const sel = document.getElementById('foul-select');
             sel.innerHTML = '<option value="">-- Sélectionner Faute --</option>';
             FAUTES.forEach(f => sel.innerHTML += `<option value="${f.split(' | ')[0]}">${f}</option>`);
-            showPage('main');
-        }
+            showPage('main');}
 
         // --- HORLOGE MATCH ---
         function startMatchTimer() { if(!state.matchTimer) state.matchTimer = setInterval(() => { if(state.currentTime > 0) { state.currentTime--; updateMatchDisplay(); } else { finishQT(); } }, 1000); }
@@ -225,8 +302,7 @@
             const p = state.pending, num = document.getElementById('sc-player').value || "??";
             state[p.team].score += p.pts; document.getElementById(`score-${p.team}`).innerText = state[p.team].score;
             state.logs.push({Type:"SCORE", QT:state.qt, Equipe:state[p.team].name, Pts:p.pts, Action:p.type, Joueur:num, Temps: document.getElementById('timer-display').innerText});
-            closeModals();
-        }
+            closeModals();}
 
         // --- MODULE FLAG ---
         function openFlagModal() { stopMatchTimer(); document.getElementById('modal-flag').style.display = 'flex'; }
@@ -237,21 +313,90 @@
             const isCNS = document.getElementById('foul-is-cns').classList.contains('bg-yellow-500');
             state.logs.push({ Type: "FAUTE", QT: state.qt, Equipe: state[state.activeFlagTeam].name, Faute: foul, Joueur: player, Arbitres: refs.join(', '), Decision: decision });
             if(isCNS && decision === 'ACC') { state[state.activeFlagTeam].cns[player] = (state[state.activeFlagTeam].cns[player] || 0) + 1; updateDisciplineUI(); }
-            resetFlagUI(); closeModals();
-        }
+            resetFlagUI(); closeModals();}
         function updateDisciplineUI() { ['h','v'].forEach(t => { const div = document.getElementById(`cns-${t}`); div.innerHTML = ""; for(let p in state[t].cns) { const cnt = state[t].cns[p]; div.innerHTML += `<div class="p-1 rounded ${cnt>=2?'bg-red-600':'bg-yellow-500 text-black'} font-bold text-[10px]">#${p}: ${cnt} CNS</div>`; } }); }
 
         // --- OUTILS ---
         function undoLastLog() { if(state.logs.length === 0) return; const last = state.logs.pop(); if(last.Type === "SCORE") { const team = last.Equipe === state.h.name ? 'h' : 'v'; state[team].score -= last.Pts; document.getElementById(`score-${team}`).innerText = state[team].score; } alert("Dernier log annulé"); }
-        function finishQT() { stopMatchTimer(); if(window.navigator.vibrate) window.navigator.vibrate(500); alert("FIN DU QUART-TEMPS"); if(state.qt < 4) { state.qt++; state.currentTime = 12*60; document.getElementById('qt-label').innerText = "QT " + state.qt; if(state.qt === 3) resetTOs(); updateMatchDisplay(); } }
+        function finishQT() { stopMatchTimer(); if (window.navigator.vibrate) window.navigator.vibrate(500); if (state.qt === 2) {stopMatchTimer(); startHalftime();state.qt++; state.currentTime = 12 * 60; document.getElementById('qt-label').innerText = "QT 3"; updateMatchDisplay();} else if (state.qt === 4) { // Fin du match
+        showFinalSummary();} else { alert("FIN DU QUART-TEMPS " + state.qt); state.qt++; state.currentTime = 12 * 60; document.getElementById('qt-label').innerText = "QT " + state.qt; updateMatchDisplay(); }}
         function showPage(id) { document.querySelectorAll('.page').forEach(p => p.classList.remove('page-active')); document.getElementById('page-'+id).classList.add('page-active'); lucide.createIcons(); }
         function closeModals() { document.querySelectorAll('.modal').forEach(m => m.style.display = 'none'); }
+        function startMatchTimer() { if(!matchTimes.start) {matchTimes.start = new Date().toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'});} if(!state.matchTimer) {state.matchTimer = setInterval(() => {if(state.currentTime > 0) { state.currentTime--; updateMatchDisplay();} else { finishQT(); } }, 1000);}}
         function setFlagTeam(t) { state.activeFlagTeam = t; document.getElementById('f-team-h').className = t==='h'?'py-3 rounded-xl bg-blue-900 border-2 border-blue-400 font-bold':'py-3 rounded-xl bg-zinc-800 font-bold'; document.getElementById('f-team-v').className = t==='v'?'py-3 rounded-xl bg-zinc-100 text-black border-2 border-blue-400 font-bold':'py-3 rounded-xl bg-zinc-100 text-black font-bold'; }
         function toggleTO(team, idx) { stopMatchTimer(); document.getElementById(`to-${team}-${idx}`).classList.toggle('timeout-used'); }
         function resetTOs() { document.querySelectorAll('.timeout-indicator').forEach(el => el.classList.remove('timeout-used')); }
         function resetFlagUI() { document.getElementById('foul-select').value = ""; document.getElementById('foul-player').value = ""; document.querySelectorAll('.ref-chip').forEach(c => c.classList.remove('active')); }
         function exportExcel() { const ws = XLSX.utils.json_to_sheet(state.logs), wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Match"); XLSX.writeFile(wb, "Rapport_Match.xlsx"); }
         window.onload = () => lucide.createIcons();
+        function resumeAfterHalftime() {if (window.htInterval) clearInterval(window.htInterval); showPage('main');}
+        function applyHTChoice(choice) {let decisionMaker;if (tossData.choice === 'Report') {decisionMaker = state[tossData.winner].name;} else {const loser = tossData.winner === 'h' ? 'v' : 'h';decisionMaker = state[loser].name;}state.logs.push({ Type: "TOSS 2MT", Equipe: decisionMaker, Choix: choice });alert("Choix enregistré : " + decisionMaker + " a choisi de " + choice);}
+        // --- Ajout Toss - Mitemps - Page finale ---
+        let tossData = { winner: null, choice: null, call: null };
+        let matchTimes = { start: null, end: null };
+
+        // Modification de startApp pour aller vers le Toss
+        function startApp() {
+            state.h.name = document.getElementById('in-h-name').value || "LOCAL";
+            state.v.name = document.getElementById('in-v-name').value || "VISITEUR";
+            document.getElementById('disp-h-name').innerText = state.h.name;
+            document.getElementById('disp-v-name').innerText = state.v.name;
+            showPage('toss');}
+
+        // --- GESTION TOSS ---
+        function setTossCall(call) {
+            tossData.call = call;
+            document.getElementById('btn-pile').className = call === 'Pile' ? 'bg-blue-600 py-3 rounded-xl font-bold' : 'bg-zinc-800 py-3 rounded-xl font-bold';
+            document.getElementById('btn-face').className = call === 'Face' ? 'bg-blue-600 py-3 rounded-xl font-bold' : 'bg-zinc-800 py-3 rounded-xl font-bold';}
+
+        function setTossWinner(team) {
+            tossData.winner = team;
+            document.getElementById('win-v').className = team === 'v' ? 'bg-blue-600 py-3 rounded-xl font-bold' : 'bg-zinc-800 py-3 rounded-xl font-bold';
+            document.getElementById('win-h').className = team === 'h' ? 'bg-blue-600 py-3 rounded-xl font-bold' : 'bg-zinc-800 py-3 rounded-xl font-bold';
+            document.getElementById('toss-choices').classList.remove('hidden');}
+
+        function applyTossChoice(choice) { 
+            tossData.choice = choice; state.logs.push({ Type: "TOSS", Gagnant: state[tossData.winner].name, Choix: choice }); showPage('main');}
+
+        // --- MI-TEMPS ET TOSS 2EME MT ---
+        function startHalftime() {showPage('halftime');let htTime = 15 * 60; const timerEl = document.getElementById('ht-timer');const info = document.getElementById('ht-toss-info');
+
+        // Règle du Toss 2ème MT
+        if (tossData.choice === 'Report') {info.innerText = `Décision à ${state[tossData.winner].name} (avait reporté)`;} else {const loser = tossData.winner === 'h' ? 'v' : 'h';info.innerText = `Décision à ${state[loser].name} (avait perdu le toss initial)`;}
+
+        // Rendre le chrono cliquable pour modification manuelle
+        timerEl.onclick = function() {let nMin = prompt("Minutes de mi-temps restantes ?", Math.floor(htTime / 60)); if (nMin !== null) htTime = parseInt(nMin) * 60;};
+
+        // Nettoyage d'un éventuel ancien intervalle
+        if (window.htInterval) clearInterval(window.htInterval); window.htInterval = setInterval(() => { if (htTime > 0) {htTime--; let m = Math.floor(htTime / 60), s = htTime % 60; timerEl.innerText = `${m}:${s.toString().padStart(2, '0')}`;} else {clearInterval(window.htInterval);if (window.navigator.vibrate) window.navigator.vibrate([200, 100, 200]);alert("FIN DE LA MI-TEMPS");}}, 1000);}
+        
+        // --- RÉSUMÉ FINAL ---
+        function showFinalSummary() {
+            matchTimes.end = new Date().toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'});
+            document.getElementById('sum-h-name').innerText = state.h.name;
+            document.getElementById('sum-v-name').innerText = state.v.name;
+            document.getElementById('sum-final-score').innerText = `${state.h.score} - ${state.v.score}`;
+            document.getElementById('time-start').innerText = matchTimes.start;
+            document.getElementById('time-end').innerText = matchTimes.end;
+
+            // Remplissage des points
+            const ptsDiv = document.getElementById('sum-points');
+            ptsDiv.innerHTML = state.logs.filter(l => l.Type === "SCORE")
+                .map(l => `<div class="flex justify-between border-b border-zinc-800 py-1"><span>QT${l.QT} - ${l.Equipe} (#${l.Joueur})</span> <span class="font-bold">+${l.Pts} (${l.Action})</span></div>`)
+                .join('');
+
+            // Remplissage des fautes avec couleur CNS
+            const fltDiv = document.getElementById('sum-fouls');
+            fltDiv.innerHTML = state.logs.filter(l => l.Type === "FAUTE")
+                .map(l => {
+                    const teamKey = l.Equipe === state.h.name ? 'h' : 'v';
+                    // On retrouve le nombre de CNS au moment du log ou via l'état final
+                    const isCNS = l.Faute.includes("UC") || l.Faute.includes("CNS");
+                    let style = "";
+                    if(isCNS) style = "text-yellow-500 font-bold";
+                    return `<div class="${style} py-1 border-b border-zinc-800">QT${l.QT} - ${l.Equipe} #${l.Joueur}: ${l.Faute} (${l.Decision})</div>`;}).join(''); showPage('summary');}
+
+
     </script>
 </body>
 </html>
