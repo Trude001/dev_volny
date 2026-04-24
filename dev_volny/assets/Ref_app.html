@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Carton de match numérique - Horloge de match - Horloge 25-40 </title>
+    <link rel="icon" type="image/png" href="images/favicon.png">
+    <meta name="description" content="Pour les arbitres de football américain, utilisation d'un carton de match numérique avec l'horloge de match, de l'horloge des 25/40, remplissage des scores, et des fautes pour les extraire en CSV">
+    <script src="scripts/tailwind.js"></script>
+    <script src="scripts/lucide.js"></script>
+    <script src="scripts/xlsx.js"></script>
+    <style>
+        body { background-color: #000; color: #fff; font-family: sans-serif; -webkit-tap-highlight-color: transparent; }
+        .page { display: none; }
+        .page-active { display: block !important; }
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.98); z-index: 1000; padding: 20px; flex-direction: column; overflow-y: auto; }
+        input, select { background: #1a1a1a; border: 1px solid #333; color: white; border-radius: 12px; padding: 15px; width: 100%; }
+        .timeout-indicator { width: 30%; height: 12px; border-radius: 6px; background: #2563eb; border: 1px solid rgba(255,255,255,0.2); }
+        .timeout-used { background: #333 !important; opacity: 0.5; }
+        .ref-chip { padding: 10px; border-radius: 10px; background: #262626; border: 1px solid #404040; font-size: 11px; text-align: center; }
+        .ref-chip.active { background: #2563eb; border-color: #60a5fa; }
+    </style>
+</head>
+
+<!--    BODY   -->
+<body>
+<!--Page d'initialisation de match-->
+<div id="page-setup" class="page page-active p-6">
+    <h1 class="text-3xl font-black mb-8 text-blue-500 uppercase">Carton de match numérique et Horloges</h1>
+    <img src="images/favicon.png" alt="Arbitrage">
+    <button onclick="openModal('credits-modal')" class="absolute top-4 right-4 p-2 bg-zinc-800 rounded-full">
+        <i data-lucide="info" class="w-6 h-6 text-yellow-500"></i>
+    </button>
+    <h2 class="text-2xl font-black text-yellow-500 uppercase">Initialisation Match</h2>
+    <br>
+    <h3 class="text-[15px] font-bold text-white-400 uppercase">Bienvenue sur la page de démarrage d'un match.</h3>
+    
+    <br>
+    <p class="text-[10px] font-bold text-gray-400 uppercase">Veuillez entrer le nom des équipes. Puis cliquez sur Démarrer.</p>
+    <br>
+    <div class="space-y-4 mb-10">
+        
+        <input type="text" id="in-h-name" placeholder="Équipe LOCALE">
+        <input type="text" id="in-v-name" placeholder="Équipe VISITEUR">
+        <button onclick="startApp()" class="w-full bg-blue-600 py-5 rounded-xl font-black text-l">DÉMARRER</button>
+    </div>
+</div>
+
+<!--Page de Toss-->
+<div id="page-toss" class="page p-6">
+    <h2 class="text-3xl font-black mb-6 text-blue-500 italic uppercase">Tirage au Sort (TOSS)</h2>
+    <div class="space-y-6">
+        <div class="bg-zinc-900 p-4 rounded-xl border border-zinc-700">
+            <p class="text-sm text-gray-400 mb-2">Appel Visiteur :</p>
+            <div class="grid grid-cols-2 gap-4">
+                <button onclick="setTossCall('Pile')" id="btn-pile" class="bg-zinc-800 py-3 rounded-xl font-bold border border-zinc-600">PILE</button>
+                <button onclick="setTossCall('Face')" id="btn-face" class="bg-zinc-800 py-3 rounded-xl font-bold border border-zinc-600">FACE</button>
+            </div>
+        </div>
+
+        <div class="bg-zinc-900 p-4 rounded-xl border border-zinc-700">
+            <p class="text-sm text-gray-400 mb-2">Gagnant du Toss :</p>
+            <div class="grid grid-cols-2 gap-4">
+                <button onclick="setTossWinner('v')" id="win-v" class="bg-zinc-800 py-3 rounded-xl font-bold italic">VISITEUR</button>
+                <button onclick="setTossWinner('h')" id="win-h" class="bg-zinc-800 py-3 rounded-xl font-bold italic">LOCAL</button>
+            </div>
+        </div>
+
+        <div id="toss-choices" class="hidden space-y-4">
+            <h3 id="toss-current-selector" class="text-yellow-500 font-bold uppercase text-center"></h3>
+            <div class="grid grid-cols-2 gap-3">
+                <button onclick="handleTossSelection('Recevoir')" class="bg-blue-600 py-4 rounded-xl font-bold text-xs">RECEVOIR</button>
+                <button onclick="handleTossSelection('Kicker')" class="bg-blue-600 py-4 rounded-xl font-bold text-xs">KICKER</button>
+                <button onclick="handleTossSelection('Terrain')" class="bg-blue-600 py-4 rounded-xl font-bold text-xs">CHOISIR TERRAIN</button>
+                <button id="btn-report" onclick="handleTossSelection('Report')" class="bg-blue-900 py-4 rounded-xl font-bold text-xs text-yellow-400">REPORT (2MT)</button>
+    </div>
+</div>
+    </div>
+</div>
+
+<!--Page principale durant le match avec horloges, score et fautes-->
+<div id="page-main" class="page">
+    <!--Horloges-->
+    <div class="bg-gray-900 p-4 sticky top-0 z-40 border-b border-gray-800 shadow-xl">
+        <h2 class="text-2xl font-black text-yellow-500 uppercase">Horloge de Match</h2>
+            <!--Horloge de match-->
+        <div class="flex justify-between items-center mb-2">
+            <span id="qt-label" class="bg-blue-600 px-3 py-1 rounded-full text-xs font-black">QT 1</span>
+            <div id="timer-display" onclick="openTimeEdit()" class="text-5xl font-mono font-bold text-white cursor-pointer">12:00</div>
+            <div class="flex gap-2">
+                <button onclick="undoLastLog()" class="text-orange-500 bg-gray-800 p-2 rounded-lg"><i data-lucide="rotate-ccw"></i></button>
+                <button onclick="exportExcel()" class="text-green-500 bg-gray-800 p-2 rounded-lg"><i data-lucide="download"></i></button>
+            </div>
+        </div>
+
+        <div class="flex justify-center gap-6 mb-4">
+            <button onclick="startMatchTimer()" class="w-12 h-12 bg-green-600 rounded-full flex items-center justify-center"><i data-lucide="play" fill="white"></i></button>
+            <button onclick="stopMatchTimer()" class="w-12 h-12 bg-red-600 rounded-full flex items-center justify-center"><i data-lucide="pause" fill="white"></i></button>
+        </div>
+                <!--Horloge 25/40-->
+        <div class="flex justify-center items-center gap-4 mb-4 bg-zinc-800/50 py-2 rounded-2xl border border-zinc-700">
+            <div id="play-clock" class="text-4xl font-mono font-bold text-yellow-500">40</div>
+            <div class="flex gap-2">
+                <button onclick="resetPlayClock(40)" class="bg-blue-600 px-3 py-2 rounded-lg text-xs font-bold">40s</button>
+                <button onclick="resetPlayClock(25)" class="bg-blue-600 px-3 py-2 rounded-lg text-xs font-bold">25s</button>
+                <button onclick="stopPlayClock()" class="bg-red-600 px-3 py-2 rounded-lg text-xs font-bold">STOP</button>
+            </div>
+        </div>
+            <!--Temps Morts-->
+        <div class="grid grid-cols-2 gap-4">
+            <div class="bg-zinc-950 border-2 border-blue-900 p-3 rounded-3xl text-center">
+                <div id="disp-h-name" class="text-[10px] text-blue-400 font-black uppercase mb-1">LOCAUX</div>
+                <div id="score-h" class="text-5xl font-black mb-2">0</div>
+                <div class="flex justify-between gap-1" id="to-h-row">
+                    <div class="timeout-indicator" id="to-h-0" onclick="toggleTO('h', 0)"></div>
+                    <div class="timeout-indicator" id="to-h-1" onclick="toggleTO('h', 1)"></div>
+                    <div class="timeout-indicator" id="to-h-2" onclick="toggleTO('h', 2)"></div>
+                </div>
+            </div>
+            <div class="bg-white text-black p-3 rounded-3xl text-center">
+                <div id="disp-v-name" class="text-[10px] font-black uppercase mb-1">VISITEURS</div>
+                <div id="score-v" class="text-5xl font-black mb-2">0</div>
+                <div class="flex justify-between gap-1" id="to-v-row">
+                    <div class="timeout-indicator" id="to-v-0" onclick="toggleTO('v', 0)"></div>
+                    <div class="timeout-indicator" id="to-v-1" onclick="toggleTO('v', 1)"></div>
+                    <div class="timeout-indicator" id="to-v-2" onclick="toggleTO('v', 2)"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+            <!--Scores-->
+    <div class="p-4 space-y-4">
+        <h2 class="text-2xl font-black text-yellow-500 uppercase">SCORES</h2>
+        <div class="grid grid-cols-2 gap-6">
+            
+            <div class="grid grid-cols-2 gap-2">
+                <button onclick="scorePrompt('h', 6, 'TD')" class="bg-blue-900 py-4 rounded-xl font-bold text-xs col-span-2">TD (6)</button>
+                <button onclick="scorePrompt('h', 0, 'EXT')" class="bg-blue-600 py-3 rounded-xl font-bold text-xs col-span-2">EXTRA POINT</button>
+                <button onclick="scorePrompt('h', 3, 'FG')" class="bg-blue-800 py-3 rounded-xl font-bold text-xs">FG (3)</button>
+                <button onclick="scorePrompt('h', 2, 'SAF')" class="bg-blue-700 py-3 rounded-xl font-bold text-xs">SAF (2)</button>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+                <button onclick="scorePrompt('v', 6, 'TD')" class="bg-zinc-300 text-black py-4 rounded-xl font-bold text-xs col-span-2">TD (6)</button>
+                <button onclick="scorePrompt('v', 0, 'EXT')" class="bg-zinc-600 text-white py-3 rounded-xl font-bold text-xs col-span-2">EXTRA POINT</button>
+                <button onclick="scorePrompt('v', 3, 'FG')" class="bg-zinc-400 text-black py-3 rounded-xl font-bold text-xs">FG (3)</button>
+                <button onclick="scorePrompt('v', 2, 'SAF')" class="bg-zinc-500 text-black py-3 rounded-xl font-bold text-xs">SAF (2)</button>
+            </div>
+        </div>
+
+                        <!--Fautes-->
+        <h2 class="text-2xl font-black text-yellow-500 uppercase">Gestion des fautes</h2>
+        <button onclick="openFlagModal()" class="w-full py-8 bg-yellow-400 text-black font-black text-4xl rounded-3xl uppercase italic shadow-lg">FLAG</button>
+        <p class="text-[10px] font-bold text-yellow-400 uppercase">JOUEUR(S) SOUS CNS (UC)</p>
+        <p class="text-[10px] font-bold text-gray-400 uppercase">1 CNS (UC) marqué en jaune, à la 2ème CNS (UC) passage en rouge</p>
+        <div id="discipline-zone" class="grid grid-cols-2 gap-4">
+            <div id="cns-h" class="space-y-1"></div>
+            <div id="cns-v" class="space-y-1"></div>
+        </div>
+    </div>
+</div>
+
+<!--Page de mi temps -->
+<div id="page-halftime" class="page p-6 text-center">
+    <h2 class="text-4xl font-black text-blue-500 mb-4 italic">MI-TEMPS</h2>
+    <div id="ht-timer" class="text-7xl font-mono font-bold mb-8">15:00</div>
+    <div class="bg-zinc-900 p-6 rounded-3xl border border-yellow-500 mb-6 text-left">
+        <h3 class="font-bold text-yellow-500 mb-4 uppercase">Toss 2ème Mi-Temps</h3>
+        <p id="ht-toss-info" class="text-sm mb-4 text-gray-300"></p>
+        <div class="grid grid-cols-1 gap-3">
+            <button onclick="applyHTChoice('Recevoir')" class="bg-blue-600 py-4 rounded-xl font-bold">RECEVOIR</button>
+            <button onclick="applyHTChoice('Kicker')" class="bg-blue-600 py-4 rounded-xl font-bold">KICKER</button>
+            <button onclick="applyHTChoice('Terrain')" class="bg-blue-600 py-4 rounded-xl font-bold">CÔTÉ TERRAIN</button>
+        </div>
+    </div>
+    <button onclick="resumeAfterHalftime()" class="w-full bg-green-600 py-4 rounded-xl font-black">REPRENDRE LE MATCH</button>
+</div>
+<!-- Page de fin de match résumé du match-->
+<div id="page-summary" class="page p-6">
+    <h2 class="text-3xl font-black text-blue-500 mb-6 italic uppercase">Résumé du Match</h2>
+    <p class="text-[10px] font-bold text-gray-400 uppercase">Bon match, merci d'avoir utiliser cette appli.</p>
+    <div class="space-y-4 text-sm">
+        <div class="bg-zinc-900 p-4 rounded-xl border border-blue-500">
+            <div class="flex justify-between text-xl font-bold mb-2">
+                <span id="sum-h-name">LOCAL</span>
+                <span id="sum-final-score">0 - 0</span>
+                <span id="sum-v-name">VISITEUR</span>
+            </div>
+            <p class="text-[10px] text-gray-500 italic">
+                Début : <span id="time-start">--:--</span> | Fin : <span id="time-end">--:--</span>
+            </p>
+        </div>
+        
+        <div class="bg-zinc-900 p-4 rounded-xl">
+            <h4 class="font-bold text-blue-400 mb-2 uppercase text-xs">Chronologie des Points</h4>
+            <div id="sum-points" class="space-y-1 max-h-40 overflow-y-auto"></div>
+        </div>
+
+        <div class="bg-zinc-900 p-4 rounded-xl">
+            <h4 class="font-bold text-yellow-500 mb-2 uppercase text-xs">Journal des Fautes</h4>
+            <div id="sum-fouls" class="space-y-1 max-h-40 overflow-y-auto"></div>
+        </div>
+
+        <button onclick="exportExcel()" class="w-full bg-green-600 py-4 rounded-2xl font-black flex items-center justify-center gap-2">
+            <i data-lucide="download"></i> EXPORTER CSV (EXCEL)
+        </button>
+        <button onclick="resetFullApp()" class="w-full mt-4 bg-red-900/50 text-red-500 border border-red-500 py-3 rounded-2xl font-bold text-xs uppercase italic">
+        Réinitialiser pour un nouveau match
+        </button>
+    </div>
+</div>
+
+<div id="modal-time" class="modal justify-center items-center">
+    <div class="bg-zinc-900 p-6 rounded-3xl border border-blue-500 w-full max-w-xs">
+        <h3 class="text-center font-bold mb-4">RÉGLER LE TEMPS</h3>
+        <div class="flex gap-2 mb-6">
+            <input type="number" id="edit-min" placeholder="Min" class="text-center text-2xl">
+            <input type="number" id="edit-sec" placeholder="Sec" class="text-center text-2xl">
+        </div>
+        <button onclick="confirmTimeEdit()" class="w-full bg-green-600 py-4 rounded-xl font-bold">APPLIQUER</button>
+        <button onclick="closeModals()" class="w-full mt-2 text-gray-400 text-sm">Fermer</button>
+    </div>
+</div>
+
+<div id="modal-score" class="modal justify-center items-center">
+    <div class="bg-zinc-900 p-6 rounded-3xl border border-blue-500 w-full max-w-xs">
+        <h3 id="sc-title" class="text-center font-bold mb-4 uppercase">JOUEUR</h3>
+        <div id="sc-ext" class="hidden grid grid-cols-2 gap-2 mb-4">
+            <button onclick="setExt(1)" id="ex1" class="bg-blue-600 py-2 rounded-lg font-bold">EXT +1</button>
+            <button onclick="setExt(2)" id="ex2" class="bg-blue-800 py-2 rounded-lg font-bold">EXT +2</button>
+        </div>
+        <input type="number" id="sc-player" class="text-center text-3xl mb-4" placeholder="00">
+        <button onclick="confirmScore()" class="w-full bg-green-600 py-4 rounded-xl font-bold">VALIDER</button>
+    </div>
+</div>
+
+<div id="modal-flag" class="modal">
+    <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-black text-yellow-500 uppercase">Faute</h2>
+        <button onclick="closeModals()" class="bg-red-600 px-4 py-2 rounded-lg font-bold">X</button>
+    </div>
+    <p class="text-[10px] font-bold text-gray-400 uppercase">Sélectionnez l'équipe qui a effectué la faute.</p>
+    <div class="space-y-4">
+        <div class="grid grid-cols-2 gap-2">
+            <button id="f-team-h" onclick="setFlagTeam('h')" class="py-3 rounded-xl bg-blue-900 border-2 border-blue-400 font-bold">LOCAL</button>
+            <button id="f-team-v" onclick="setFlagTeam('v')" class="py-3 rounded-xl bg-zinc-100 text-black font-bold">VISITEUR</button>
+        </div>
+        <p class="text-[10px] font-bold text-gray-400 uppercase">Sélectionnez la faute soit dans le listing OU </p>
+        <select id="foul-select" class="text-sm"></select>
+        <p class="text-[10px] font-bold text-gray-400 uppercase">... Ecrivez en toutes lettres (si écrit pensez à cocher CNS (UC) si besoin).</p>
+        <div class="flex gap-2">
+            <input type="text" id="foul-custom" placeholder="Autre faute..." class="flex-1">
+            <button id="foul-is-cns" onclick="this.classList.toggle('bg-yellow-500'); this.classList.toggle('text-black')" class="px-4 bg-zinc-800 rounded-xl font-bold border border-yellow-500">CNS</button>
+        </div>
+        <p class="text-[10px] font-bold text-gray-400 uppercase">Sélectionnez le joueur ou l'entraineur</p>
+        <input type="number" id="foul-player" 
+            placeholder="N° (00-99) ou Coach" 
+            class="w-full p-4 bg-zinc-800 border border-zinc-700 rounded-xl text-white relative z-50"
+            style="-webkit-user-select: text; user-select: text;"
+            oninput="validatePlayerInput(this)">
+
+        <p class="text-[10px] font-bold text-gray-400 uppercase">Arbitres ayant signalées :</p>
+        <div class="grid grid-cols-4 gap-2" id="ref-grid">
+            <div class="ref-chip" onclick="this.classList.toggle('active')">AP</div>
+            <div class="ref-chip" onclick="this.classList.toggle('active')">JM</div>
+            <div class="ref-chip" onclick="this.classList.toggle('active')">JT (JC)</div>
+            <div class="ref-chip" onclick="this.classList.toggle('active')">JL</div>
+            <div class="ref-chip" onclick="this.classList.toggle('active')">JCA</div>
+            <div class="ref-chip" onclick="this.classList.toggle('active')">JCO</div>
+            <div class="ref-chip" onclick="this.classList.toggle('active')">JCH</div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-2 pt-6">
+            <button onclick="saveFlag('ACC')" class="bg-green-700 py-4 rounded-xl font-bold text-xs">ACCEPTÉ</button>
+            <button onclick="saveFlag('DEC')" class="bg-red-700 py-4 rounded-xl font-bold text-xs">DÉCLINÉ</button>
+            <button onclick="saveFlag('ANN')" class="bg-gray-700 py-4 rounded-xl font-bold text-xs">ANNULÉ</button>
+        </div>
+    </div>
+</div>
+
+<div id="credits-modal" class="modal">
+    <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-black text-blue-500 italic uppercase">Crédits & Aide</h2>
+    </div>
+    
+    <div class="space-y-4 text-zinc-300 text-sm">
+            <p><strong class="text-white">Conception :</strong> Carton de Match numérique pour les arbitres de Football Américain en France</p>
+            <p><strong class="text-white">Usage :</strong> Il permet de gérer l'horloge de match, le temps (25/40s), les scores et scoreurs, les fautes, et d'extraire un fichier en fin de match.</p>
+            
+            <hr class="border-zinc-700">
+            
+            <h3 class="text-white font-bold text-lg">Guide Rapide :</h3>
+            <ul class="list-disc pl-5 space-y-2">
+                <li><span class="text-yellow-500">Chrono Match :</span> Cliquez sur le temps pour l'éditer manuellement. changement à chaque quart temps, possible pour les passages en 20 minutes temps continu par exemple.</li>
+                <li><span class="text-yellow-500">Fautes :</span> Sélectionnez la faute dans la liste ou écrivez là (dans ce cas pensez à cocher CNS si besoin), puis sélectionnez le joueur, et les arbitres.</li>
+                <li><span class="text-yellow-500">Export :</span> En fin de match, cliquez sur "Terminer" pour générer le fichier Excel (.xlsx).</li>
+                <li><span class="text-yellow-500">Vibration :</span> Le téléphone vibre à la fin des comptes à rebours.</li>
+            </ul>
+
+            <p class="text-[10px] mt-6 italic">Pensé et créé par Volny MOGET, et Propulsé par Tailwind CSS, Lucide Icons et SheetJS.</p>
+            <p class="text-xs text-gray-500 mt-10">Version 1.0 - 2026</p>
+    </div>
+
+
+    <button onclick="exitModal()" class="mt-auto w-full bg-green-600 py-4 rounded-xl font-bold text-white uppercase tracking-widest shadow-lg active:scale-95 transition-all">
+        Retour
+    </button>
+</div>
+
+ <!-- Passage en JavaScript ci-dessous-->  
+
+    <script>
+                // Liste complète des fautes mise à jour
+const FAUTES = [
+    "APS | Altérer la surface de jeu", "ATR | Aide au coureur", "BAT | Balle rabattue illégalement", "DEH | Saisie, défense",
+    "DOD | Délai de jeu, défense", "DOF | Dépassement, défense", "DOF / LN | Dépassement, défense - Joueur aligné dans la zone neutre",
+    "DOF / NZI | Dépassement, défense - Présence dans la zone neutre", "DOF / UN | Dépassement, défense - QB menacé",
+    "DOF / WC | Dépassement, défense - Avec contact", "DOG | Délai, attaque", "DPI | Interférence passe, déf",
+    "DPI / AB | Interférence de passe, défense - Bras en travers", "DPI / CO | Interférence de passe, défense - Couper la course",
+    "DPI / GA | Interférence de passe, défense - Agripper le bras", "DPI / HT | Interférence de passe, défense - Attraper et faire tourner",
+    "DPI / NB | Interférence de passe, défense - Ne pas jouer la balle","DPI / PT | Interférence de passe, défense - Joueur à travers un adversaire",
+    "DSH | Délai mi-temps", "DSQ | Expulsion", "ENC | Empiètement (attaque)", "EQV | Equipement illégal", "FGT | Bagarre",
+    "FST | Faux départ", "IBB | Bloc dans le dos", "IBK | Bloc illégal durant un coup de pied", "IBP | Passe arrière illégale", 
+    "IDP | Inéligible passe", "IFD | Formation illégale, défense (3 sur 1)", "IFH | Transmission en avant illégale", "IFK | Formation de coup de pied illégale", 
+    "IFP | Passe avant illégale", "IKB | Balle bottée illégalement", "ILF | Formation illégale", "ILM | Mouvement illégal",
+    "ILP | Participation illégale", "ING | Rejet intentionnel", "IPR | Procédure illégale",
+    "ISH | Permutation illégale", "ISP | Snap illégal","ITP | Toucher illégal d'une passe avant", "IUH | Usage illégal des mains",
+    "IWK | Mur illégal, coup de pied libre", "KCI | Interférence avec la réception de coup de pieds","KIK | Coup de pied illégal","KOB | Coup de pied libre hors-limites",
+    "OBK | Joueur en touche durant un coup de pied","OFK | Dépassement, équipe de coup de pied", "OH | Saisie attaque", "OPI | Interférence de passe, attaque",
+    "PF / BBW | Faute personnelle, bloc sous la ceinture", "PF / BOB | Faute personnelle, bloc en dehors des limites",
+    "PF / BSB | Faute personnelle, bloc coté aveugle","PF / BTH | Faute personnelle, coup à la tête", "PF / CHB | Faute personnelle, bloc en tenaille",
+    "PF / CLP | Faute personnelle, fauchage", "PF / FMM | Faute personnelle, saisie de la grille", "PF / HCT | Faute personnelle, plaquage au col",
+    "PF / HDR | Faute personnelle, coup porté à un receveur sans défense", "PF / HTF | Faute personnelle, main au visage",
+    "PF / HUR | Faute personnelle, franchissement", "PF / ICS | Faute personnelle, contact illégal avec le snapper",
+    "PF / LEA | Faute personnelle, sauter par-dessus", "PF / LHP | Faute personnelle, coup à retardement, empilement",
+    "PF / LTO | Faute personnelle, coup à retardement hors-limites", "PF / OTH | Faute personnelle, autre",
+    "PF / RFK | Faute personnelle, brutalité sur le botteur", "PF / RTH | Faute personnelle, brutalité sur le placeur",
+    "PF / RTK | Faute personnelle, brutalité sur le botteur", "PF / RTP | Faute personnelle, brutalité sur le passeur",
+    "PF / SKE | Faute personnelle, donner un coup avec le bras/le genoux/l'épaule",
+    "PF / TGT | Faute personnelle, targeting","PF / TRP | Faute personnelle, croche-patte",
+    "PF / UNR | Faute personnelle, brutalité non nécessaire", "RNH | Courrir dans le placeur",
+    "RNK | Courrir dans le botteur", "SLI | Avertissement sur la touche, 5 yards", "SLM | Avertissement sur la touche, 15 yards",
+    "SLW | Avertissement sur la touche, avertissement", "SUB | Substitution illégale", "UC / ABL | Conduite non sportive, langage abusif",
+    "UC / BCH | Conduite non sportive, banc de touche", "UC / DEA | Conduite non sportive, Prolongé/excessif",
+    "UC / FCO | Consuite non sportive, contacter volontairement un arbitre", "UC / RHT | Conduite non sportive, enlever son casque",
+    "UC / SBR | Conduite non sportive, simuler une brutalité", "UC / STB | Conduite non sportive, spiker/jeter la balle",
+    "UC / TAU | Conduite non sportive, chambrer", "UC / UNS | Conduite non sportive, autres", "UFA | Acte déloyal", "UFT | Tactique déloyale",
+
+];
+
+// Fonction pour remplir le menu des fautes (appelée au démarrage)
+        function populateFouls() {
+            const sel = document.getElementById('foul-select');
+            if (!sel) return;
+            sel.innerHTML = '<option value="">-- Sélectionner Faute --</option>';
+            FAUTES.forEach(f => {
+                let code = f.split(' | ')[0];
+                let option = document.createElement('option');
+                option.value = code;
+                option.textContent = f;
+                sel.appendChild(option);});}
+                let state = {
+                    h: { name: "LOCAL", score: 0, cns: {} },
+                    v: { name: "VISITEUR", score: 0, cns: {} },
+                    qt: 1, currentTime: 12*60, matchTimer: null,
+                    playClock: 40, playClockTimer: null,
+                    logs: [], pending: null, activeFlagTeam: 'h'};
+
+       
+
+
+// --- HORLOGE MATCH ---
+        function startMatchTimer() { 
+            if(!state.matchTimer) state.matchTimer = setInterval(() => { 
+            if(state.currentTime > 0) { state.currentTime--; updateMatchDisplay(); } 
+            else { finishQT(); } }, 1000); }
+        function stopMatchTimer() { clearInterval(state.matchTimer); state.matchTimer = null; }
+        function updateMatchDisplay() { 
+            const m = Math.floor(state.currentTime / 60), 
+            s = state.currentTime % 60; document.getElementById('timer-display').innerText = `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`; }
+        function openTimeEdit() { stopMatchTimer(); 
+            document.getElementById('edit-min').value = Math.floor(state.currentTime / 60); 
+            document.getElementById('edit-sec').value = state.currentTime % 60; 
+            document.getElementById('modal-time').style.display = 'flex'; }
+        function confirmTimeEdit() { 
+            state.currentTime = (parseInt(document.getElementById('edit-min').value)*60) + parseInt(document.getElementById('edit-sec').value); updateMatchDisplay(); closeModals(); }
+
+        // --- PLAY CLOCK ---
+        function resetPlayClock(val) { clearInterval(state.playClockTimer); state.playClock = val; 
+            document.getElementById('play-clock').innerText = val; state.playClockTimer = setInterval(() => { 
+                if(state.playClock > 0) { state.playClock--; document.getElementById('play-clock').innerText = state.playClock; } 
+                else { clearInterval(state.playClockTimer); } }, 1000); }
+        function stopPlayClock() { clearInterval(state.playClockTimer); state.playClockTimer = null; }
+
+ // --- SCORES ---
+        function scorePrompt(team, pts, type) { stopMatchTimer(); 
+            state.pending = {team, pts, type}; 
+            document.getElementById('sc-ext').classList.toggle('hidden', type !== 'EXT'); 
+            document.getElementById('modal-score').style.display = 'flex'; }
+        function setExt(v) { 
+            state.pending.pts = v; 
+            document.getElementById('ex1').className = v===1?'bg-blue-400 py-2 rounded-lg font-bold':'bg-blue-600 py-2 rounded-lg font-bold'; 
+            document.getElementById('ex2').className = v===2?'bg-blue-400 py-2 rounded-lg font-bold':'bg-blue-800 py-2 rounded-lg font-bold'; }
+        function confirmScore() {
+            const p = state.pending, num = document.getElementById('sc-player').value || "??";
+            state[p.team].score += p.pts; document.getElementById(`score-${p.team}`).innerText = state[p.team].score;
+            state.logs.push({Type:"SCORE", QT:state.qt, Equipe:state[p.team].name, Pts:p.pts, Action:p.type, Joueur:num, Temps: document.getElementById('timer-display').innerText});
+            document.getElementById('sc-player').value = "";
+            closeModals();}
+
+ // --- MODULE FLAG ---
+        function openFlagModal() { stopMatchTimer(); document.getElementById('modal-flag').style.display = 'flex'; }
+        function saveFlag(decision) {
+            const refs = []; 
+            document.querySelectorAll('.ref-chip.active').forEach(c => refs.push(c.innerText));
+            const foulSelect = document.getElementById('foul-select').value;
+            const foulCustom = document.getElementById('foul-custom').value;
+            const foul = foulSelect || foulCustom;
+            const playerRaw = document.getElementById('foul-player').value.trim();
+            const player = playerRaw.toLowerCase() === 'coach' ? 'Coach' : playerRaw;
+            const isUCOrCNS = foul.startsWith("UC /") || 
+                      foul.includes("Conduite non sportive") || 
+                      document.getElementById('foul-is-cns').classList.contains('bg-yellow-500');
+            const isDirectExpulsion = (foul === "DSQ" || foul === "FGT");
+            state.logs.push({ Type: "FAUTE", QT: state.qt, Equipe: state[state.activeFlagTeam].name, Faute: foul, Joueur: player || "??", Arbitres: refs.join(', '), Decision: decision });
+            if(decision === 'ACC') {
+                if (isDirectExpulsion) {state[state.activeFlagTeam].cns[player] = (state[state.activeFlagTeam].cns[player] || 0) + 2; updateDisciplineUI();} 
+                else if (isUCOrCNS) { state[state.activeFlagTeam].cns[player] = (state[state.activeFlagTeam].cns[player] || 0) + 1; updateDisciplineUI();}}
+            resetFlagUI(); closeModals();}
+        function updateDisciplineUI() { ['h','v'].forEach(t => { const div = document.getElementById(`cns-${t}`); div.innerHTML = ""; for(let p in state[t].cns) { 
+            const cnt = state[t].cns[p]; 
+            div.innerHTML += `<div class="p-1 rounded ${cnt>=2?'bg-red-600':'bg-yellow-500 text-black'} font-bold text-[10px]">#${p}: ${cnt} CNS</div>`; } }); }
+
+        // --- OUTILS ---
+        
+        function openModal() {
+            document.getElementById('credits-modal').style.display = 'flex';}
+        function undoLastLog() { 
+            if(state.logs.length === 0) 
+            return; const last = state.logs.pop(); 
+            if(last.Type === "SCORE") { const team = last.Equipe === state.h.name ? 'h' : 'v'; state[team].score -= last.Pts; document.getElementById(`score-${team}`).innerText = state[team].score; } 
+            alert("Dernier log annulé"); }
+        function finishQT() { 
+            stopMatchTimer(); 
+            if (window.AndroidInterface) {
+                AndroidInterface.vibrate(500); 
+            } else if (window.navigator.vibrate) {
+                window.navigator.vibrate(500);} 
+            if (state.qt === 2) {
+                matchTimes.endMT1 = new Date().toLocaleTimeString('fr-FR',{hour: '2-digit', minute:'2-digit'});
+                state.qt = 3; 
+                state.currentTime = 12 * 60;
+                document.getElementById('qt-label').innerText = "QT 3";
+                updateMatchDisplay();
+                startHalftime(); 
+            } else if (state.qt === 4) {
+                const timerDisplay = document.getElementById('timer-display');
+                timerDisplay.onclick = null; 
+                timerDisplay.innerHTML = `
+            <button onclick="confirmEndMatch(event)" 
+                    class="bg-red-600 text-white text-[12px] px-4 py-2 rounded-xl uppercase font-black shadow-lg border-2 border-white animate-pulse"
+                    style="pointer-events: auto;">
+                TERMINER LE MATCH
+            </button>`;
+                clearInterval(window.matchTimerInterval); 
+                alert("MATCH TERMINÉ ! Utilisez le bouton rouge pour accéder au résumé.");
+            } else {
+                alert("FIN DU QUART-TEMPS " + state.qt);
+                state.qt++; 
+                state.currentTime = 12 * 60;
+                document.getElementById('qt-label').innerText = "QT " + state.qt;
+                updateMatchDisplay();}}
+        function confirmEndMatch(e) {
+    if (e) e.stopPropagation();
+    if (confirm("Êtes-vous sûr de vouloir clôturer définitivement le match et voir le résumé ?")) {
+        console.log("Tentative d'affichage du résumé...");
+        showFinalSummary();}}
+        function showPage(id) {       
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('page-active')); const target = document.getElementById('page-' + id);
+                if (target) {target.classList.add('page-active');}
+                if (window.lucide) lucide.createIcons();} 
+        function closeModals() { 
+            document.querySelectorAll('.modal').forEach(m => m.style.display = 'none'); }
+        function startMatchTimer() { 
+            if(!matchTimes.start) {matchTimes.start = new Date().toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'});} 
+            if(!state.matchTimer) {state.matchTimer = setInterval(() => {if(state.currentTime > 0) { state.currentTime--; updateMatchDisplay();} 
+            else { finishQT(); } }, 1000);}}
+        function setFlagTeam(t) { 
+            state.activeFlagTeam = t; 
+            document.getElementById('f-team-h').className = t==='h'?'py-3 rounded-xl bg-blue-900 border-2 border-blue-400 font-bold':'py-3 rounded-xl bg-zinc-800 font-bold'; 
+            document.getElementById('f-team-v').className = t==='v'?'py-3 rounded-xl bg-zinc-100 text-black border-2 border-blue-400 font-bold':'py-3 rounded-xl bg-zinc-100 text-black font-bold'; }
+        function toggleTO(team, idx) {
+            const el = document.getElementById(`to-${team}-${idx}`);
+            const isAlreadyUsed = el.classList.contains('timeout-used');
+            if (!isAlreadyUsed) {el.classList.add('timeout-used');
+                const timeAtTO = document.getElementById('timer-display').innerText;
+                const qtAtTO = state.qt;
+                const teamName = state[team].name;
+                let labelId = `label-to-${team}-${idx}`;
+                let label = document.getElementById(labelId);
+                if (!label) {
+                    label = document.createElement('div');
+                    label.id = labelId;
+                    label.className = "text-[8px] text-gray-400 mt-1 leading-none";
+                    el.parentNode.appendChild(label);
+                }
+                label.innerText = `QT${qtAtTO} ${timeAtTO}`;
+                state.logs.push({
+                    Type: "TEMPS MORT",
+                    QT: qtAtTO,
+                    Temps: timeAtTO,
+                    Equipe: teamName,
+                    Action: `Temps Mort n°${idx + 1}`,
+                    Joueur: "_" });
+                stopMatchTimer();
+                if (window.AndroidInterface) {
+                AndroidInterface.vibrate(100); 
+                } else if (window.navigator.vibrate) {
+                window.navigator.vibrate(100);} 
+            } else {
+                el.classList.remove('timeout-used');const label = document.getElementById(`label-to-${team}-${idx}`);
+                if (label) label.innerText = "";}}
+        function resetTOs() { 
+            document.querySelectorAll('.timeout-indicator').forEach(el => el.classList.remove('timeout-used')); }
+        function resetFlagUI() { 
+            document.getElementById('foul-select').value = ""; document.getElementById('foul-player').value = ""; 
+            document.querySelectorAll('.ref-chip').forEach(c => c.classList.remove('active')); }
+        function resumeAfterHalftime() {
+            matchTimes.startMT2 = new Date().toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'});
+            if (window.htInterval) clearInterval(window.htInterval);
+            document.querySelectorAll('.timeout-indicator').forEach(el => el.classList.remove('timeout-used'));
+            document.querySelectorAll('[id^="label-to-"]').forEach(label => label.innerText = "");
+            state.qt = 3;
+            document.getElementById('qt-label').innerText = "QT 3";
+            updateMatchDisplay();
+            showPage('main');}
+        function applyHTChoice(choice) {
+            const info = document.getElementById('ht-toss-info');
+            const container = document.querySelector('#page-halftime .grid');
+            const otherTeam = (tossData.htFirstChooser === 'h') ? 'v' : 'h';
+            if (!tossData.htFirstChoice) {
+                // --- PREMIER CHOIX MI-TEMPS ---
+                tossData.htFirstChoice = choice;
+                state.logs.push({ Type: "TOSS_2MT_1", Equipe: state[tossData.htFirstChooser].name, Choix: choice });
+                if (choice === 'Kicker' || choice === 'Recevoir') {
+                    info.innerText = "L'autre équipe choisit le Terrain : " + state[otherTeam].name;
+                    container.innerHTML = `
+                        <button onclick="applyHTChoice('Terrain Gauche')" class="bg-blue-600 py-4 rounded-xl font-bold text-xs">GAUCHE ←</button>
+                        <button onclick="applyHTChoice('Terrain Droit')" class="bg-blue-600 py-4 rounded-xl font-bold text-xs">DROIT →</button>`;
+                } else {
+                    info.innerText = "L'autre équipe choisit le Ballon : " + state[otherTeam].name;
+                    container.innerHTML = `
+                        <button onclick="applyHTChoice('Recevoir')" class="bg-blue-600 py-4 rounded-xl font-bold text-xs">RECEVOIR</button>
+                        <button onclick="applyHTChoice('Kicker')" class="bg-blue-600 py-4 rounded-xl font-bold text-xs">KICKER</button>`;    }
+            } else {
+                // --- DEUXIÈME CHOIX MI-TEMPS ---
+                state.logs.push({ Type: "TOSS_2MT_2", Equipe: state[otherTeam].name, Choix: choice });
+                // Résumé final des deux choix sur la page
+                info.innerHTML = `<div class="text-green-400 font-bold uppercase mb-2">Choix enregistrés</div>
+                    1. ${state[tossData.htFirstChooser].name} : ${tossData.htFirstChoice}<br>
+                    2. ${state[otherTeam].name} : ${choice}`;
+                // On vide les boutons de choix pour éviter les doubles clics
+                container.innerHTML = `<div class="text-center text-gray-500 py-4 italic">Prêt pour la reprise</div>`;}}
+        function validatePlayerInput(input) {    let val = input.value;
+            // Si l'utilisateur commence à taper "C", on l'aide pour "Coach"
+            if (val.toLowerCase().startsWith('c')) {
+                if ('coach'.startsWith(val.toLowerCase())) {
+                    return;
+                } else {input.value = "";}
+            } else {
+                // Ne garde que les chiffres et limite à 2 caractères
+                input.value = val.replace(/[^0-9]/g, '').substring(0, 2);}}      
+
+ // --- Ajout Toss - Mitemps - Page finale ---
+        let tossData = { winner: null, winnerChoice: null, call: null, loser: null, loserChoice: null, reportChoiceMT2:null};
+        let matchTimes = { start: null,  endMT1: null, startMT2: null, end: null };
+
+ // Modification de startApp pour aller vers le Toss
+        function startApp() {
+            state.h.name = document.getElementById('in-h-name').value || "LOCAL";
+            state.v.name = document.getElementById('in-v-name').value || "VISITEUR";
+            document.getElementById('disp-h-name').innerText = state.h.name;
+            document.getElementById('disp-v-name').innerText = state.v.name;
+            document.getElementById('win-h').innerText = state.h.name;
+            document.getElementById('win-v').innerText = state.v.name;
+            document.getElementById('f-team-h').innerText = state.h.name;
+            document.getElementById('f-team-v').innerText = state.v.name;
+            document.getElementById('sum-h-name').innerText = state.h.name;
+            document.getElementById('sum-v-name').innerText = state.v.name;
+            updateMatchDisplay();
+            showPage('toss');}
+
+ // --- GESTION TOSS ---
+        function setTossCall(call) {
+            tossData.call = call;
+            document.getElementById('btn-pile').className = call === 'Pile' ? 'bg-blue-600 py-3 rounded-xl font-bold' : 'bg-zinc-800 py-3 rounded-xl font-bold';
+            document.getElementById('btn-face').className = call === 'Face' ? 'bg-blue-600 py-3 rounded-xl font-bold' : 'bg-zinc-800 py-3 rounded-xl font-bold';}
+        function setTossWinner(team) { 
+            // 1. Enregistrement des rôles
+            tossData.winner = team; 
+            tossData.loser = (team === 'h') ? 'v' : 'h';
+            // 2. Affichage du bloc de choix
+            document.getElementById('toss-choices').classList.remove('hidden');
+            const choicesDiv = document.getElementById('toss-choices');
+            choicesDiv.classList.remove('hidden');
+            // 3. Mise à jour dynamique du titre avec le NOM de l'équipe
+            const selectorLabel = document.getElementById('toss-current-selector');
+            selectorLabel.innerText = "Choix du Gagnant : " + state[team].name;
+            // On réinitialise l'état du premier choix au cas où
+            tossData.winnerChoice = null; 
+            document.getElementById('btn-report').classList.remove('hidden');}
+                
+       function handleTossSelection(choice) {
+            const selectorLabel = document.getElementById('toss-current-selector');
+            const choicesDiv = document.querySelector('#toss-choices .grid');
+            const loserName = state[tossData.loser].name;
+            const winnerName = state[tossData.winner].name;
+
+            if (!tossData.winnerChoice) {
+                // --- ÉTAPE 1 : Le Gagnant choisit ---
+                tossData.winnerChoice = choice;
+                state.logs.push({ Type: "TOSS_1MT", Equipe: winnerName, Choix: choice });
+
+                if (choice === 'Report') {
+                    // Le perdant doit maintenant choisir Ballon ou Terrain
+                    selectorLabel.innerText = "Le PERDANT choisit : " + loserName;
+                    choicesDiv.innerHTML = `
+                        <button onclick="handleTossSelection('Recevoir')" class="bg-blue-600 py-4 rounded-xl font-bold">RECEVOIR</button>
+                        <button onclick="handleTossSelection('Kicker')" class="bg-blue-600 py-4 rounded-xl font-bold">KICKER</button>
+                        <button onclick="handleTossSelection('Terrain Gauche')" class="bg-blue-600 py-4 rounded-xl font-bold text-xs text-white">GAUCHE ←</button>
+                        <button onclick="handleTossSelection('Terrain Droit')" class="bg-blue-600 py-4 rounded-xl font-bold text-xs text-white">DROIT →</button>
+                    `;
+                } else {
+                    // Le gagnant a pris le Ballon ou le Terrain, le perdant prend ce qui reste
+                    updateLoserOptions(choice, selectorLabel, choicesDiv, loserName);
+                }
+            } else if (!tossData.loserChoice) {
+                // --- ÉTAPE 2 : Le Perdant choisit ---
+                tossData.loserChoice = choice;
+                state.logs.push({ Type: "TOSS_1MT_SUITE", Equipe: loserName, Choix: choice });
+
+                // Si le gagnant avait "Reporté", il reste un dernier choix pour le gagnant maintenant !
+                if (tossData.winnerChoice === 'Report') {
+                    if (choice === 'Kicker' || choice === 'Recevoir') {
+                        selectorLabel.innerText = "Le GAGNANT choisit le Terrain : " + winnerName;
+                        choicesDiv.innerHTML = `
+                            <button onclick="handleTossSelection('Final')" class="bg-yellow-600 py-4 rounded-xl font-bold text-xs text-white">GAUCHE ←</button>
+                            <button onclick="handleTossSelection('Final')" class="bg-yellow-600 py-4 rounded-xl font-bold text-xs text-white">DROIT →</button>
+                        `;
+                    } else {
+                        selectorLabel.innerText = "Le GAGNANT choisit le Ballon : " + winnerName;
+                        choicesDiv.innerHTML = `
+                            <button onclick="handleTossSelection('Final')" class="bg-yellow-600 py-4 rounded-xl font-bold text-xs text-white">RECEVOIR</button>
+                            <button onclick="handleTossSelection('Final')" class="bg-yellow-600 py-4 rounded-xl font-bold text-xs text-white">KICKER</button>
+                        `;
+                    }
+                } else {
+                    showPage('main'); // Fin du Toss standard
+                }
+            } else {
+                // --- ÉTAPE 3 : Fin du Toss avec Report ---
+                showPage('main');}}
+
+        function updateLoserOptions(winnerChoice, label, container, loserName) {
+            label.innerText = "Le Perdant choisit : " + loserName;
+            if (winnerChoice === 'Kicker' || winnerChoice === 'Recevoir') {
+                container.innerHTML = `
+                    <button onclick="handleTossSelection('Terrain Gauche')" class="bg-blue-600 py-4 rounded-xl font-bold text-xs text-white">GAUCHE ←</button>
+                    <button onclick="handleTossSelection('Terrain Droit')" class="bg-blue-600 py-4 rounded-xl font-bold text-xs text-white">DROIT →</button>
+                `;
+            } else {
+                container.innerHTML = `
+                    <button onclick="handleTossSelection('Recevoir')" class="bg-blue-600 py-4 rounded-xl font-bold text-xs text-white">RECEVOIR</button>
+                    <button onclick="handleTossSelection('Kicker')" class="bg-blue-600 py-4 rounded-xl font-bold text-xs text-white">KICKER</button>
+                `;
+            }
+        }
+ // --- MI-TEMPS ET TOSS 2EME MT ---
+        function startHalftime() {
+            showPage('halftime');
+            let htTime = 15 * 60; 
+            const info = document.getElementById('ht-toss-info');
+            const container = document.querySelector('#page-halftime .grid');
+            // Déterminer qui décide en premier à la mi-temps
+            let chooser = (tossData.winnerChoice === 'Report') ? tossData.winner : tossData.loser;
+            tossData.htFirstChooser = chooser; // On stocke qui fait le 1er choix MT
+            tossData.htFirstChoice = null; // Reset du choix temporaire
+            info.innerText = "Décision à la Mi-Temps : " + state[chooser].name;
+            container.innerHTML = `
+                <button onclick="applyHTChoice('Recevoir')" class="bg-blue-600 py-4 rounded-xl font-bold text-xs">RECEVOIR</button>
+                <button onclick="applyHTChoice('Kicker')" class="bg-blue-600 py-4 rounded-xl font-bold text-xs">KICKER</button>
+                <button onclick="applyHTChoice('Terrain Gauche')" class="bg-blue-600 py-4 rounded-xl font-bold text-xs">GAUCHE ←</button>
+                <button onclick="applyHTChoice('Terrain Droit')" class="bg-blue-600 py-4 rounded-xl font-bold text-xs">DROIT →</button>`;
+            window.htInterval = setInterval(() => { 
+                if (htTime > 0) {
+                    htTime--; 
+                    document.getElementById('ht-timer').innerText = `${Math.floor(htTime/60)}:${(htTime%60).toString().padStart(2,'0')}`;
+                } else { clearInterval(window.htInterval); }}, 1000);}
+               
+        // --- RÉSUMÉ FINAL ---
+        function calculerDuree(startStr, endStr) {
+            if (!startStr || !endStr) return "--";
+            const [startH, startM] = startStr.split(':').map(Number);
+            const [endH, endM] = endStr.split(':').map(Number);
+            let debutEnMinutes = startH * 60 + startM;
+            let finEnMinutes = endH * 60 + endM;
+            if (finEnMinutes < debutEnMinutes) {finEnMinutes += 24 * 60;}
+            const diff = finEnMinutes - debutEnMinutes;
+            const heures = Math.floor(diff / 60);
+            const minutes = diff % 60;
+            return `${heures}h ${minutes.toString().padStart(2, '0')}min`;}
+            
+            // Calcul des durées
+            const dureeTotale = calculerDuree(matchTimes.start, matchTimes.end);
+            const dureeMT1 = matchTimes.endMT1 ? calculerDuree(matchTimes.start, matchTimes.endMT1) : "--";
+            const dureePause = (matchTimes.endMT1 && matchTimes.startMT2) ? calculerDuree(matchTimes.endMT1, matchTimes.startMT2) : "--";
+            const dureeMT2 = (matchTimes.startMT2 && matchTimes.end) ? calculerDuree(matchTimes.startMT2, matchTimes.end) : "--";
+
+            // On crée ou met à jour un bloc d'info pour les durées
+            const durationEl = document.getElementById('sum-points').parentElement; 
+            const statsHTML = `
+            <div class="grid grid-cols-2 gap-2 mb-4 text-[11px] bg-zinc-800 p-3 rounded-lg border border-zinc-700">
+            <div>MT 1: <span class="text-white font-bold">${dureeMT1}</span></div>
+            <div>MT 2: <span class="text-white font-bold">${dureeMT2}</span></div>
+            <div>Pause: <span class="text-white font-bold">${dureePause}</span></div>
+            <div class="text-blue-400">Total: <span class="font-bold">${dureeTotale}</span></div></div>`;
+        function showFinalSummary() {
+            try {
+                // 1. Enregistrement de l'heure de fin
+                matchTimes.end = new Date().toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'});
+                // 2. Mise à jour des textes de base
+                document.getElementById('sum-h-name').innerText = state.h.name;
+                document.getElementById('sum-v-name').innerText = state.v.name;
+                document.getElementById('sum-final-score').innerText = `${state.h.score} - ${state.v.score}`;
+                document.getElementById('time-start').innerText = matchTimes.start || "--:--";
+                document.getElementById('time-end').innerText = matchTimes.end;
+                // 3. Gestion des durées (avec sécurité si les variables sont absentes)
+                const durationEl = document.getElementById('duration');
+                if (durationEl) {
+                    // On utilise les variables si elles existent, sinon on met "N/A"
+                    let d1 = typeof dureeMT1 !== 'undefined' ? dureeMT1 : "--";
+                    let dP = typeof dureePause !== 'undefined' ? dureePause : "--";
+                    let d2 = typeof dureeMT2 !== 'undefined' ? dureeMT2 : "--";
+                    let dT = typeof dureeTotale !== 'undefined' ? dureeTotale : "--";
+                    durationEl.innerHTML = `1ère MT: ${d1} | Pause: ${dP} | 2ème MT: ${d2}<br><strong>TOTAL: ${dT}</strong>`;}
+                // 4. Remplissage des points
+                const ptsDiv = document.getElementById('sum-points');
+                if (ptsDiv) {
+                    ptsDiv.innerHTML = state.logs.filter(l => l.Type === "SCORE")
+                        .map(l => `<div class="flex justify-between border-b border-zinc-800 py-1 text-xs">
+                            <span>QT${l.QT} ${l.Temps || ""} - ${l.Equipe} (#${l.Joueur})</span>
+                            <span class="font-bold text-green-400">+${l.Pts}</span>
+                        </div>`).join('') || "Aucun point";}
+                // 5. Remplissage des fautes (avec votre règle UC / CNS)
+                const fltDiv = document.getElementById('sum-fouls');
+                if (fltDiv) {
+                    fltDiv.innerHTML = state.logs.filter(l => l.Type === "FAUTE")
+                        .map(l => {
+                            const isUC = l.Faute.startsWith("UC /") || l.Faute.includes("CNS");
+                            const isExp = l.Faute.includes("DSQ") || l.Faute.includes("FGT");
+                            let cl = isExp ? "text-red-500 font-bold" : (isUC ? "text-yellow-500" : "text-gray-400");
+                            return `<div class="py-1 border-b border-zinc-800 text-[10px] ${cl}">
+                                QT${l.QT} ${l.Temps || ""} - ${l.Equipe} #${l.Joueur}: ${l.Faute}
+                            </div>`;
+                        }).join('') || "Aucune faute";}
+                // 6. CHANGEMENT DE PAGE (C'est ici que ça se passe)
+                showPage('summary');
+            } catch (error) {
+                console.error("Erreur dans showFinalSummary:", error);
+                alert("Erreur lors de la génération du résumé. Vérifiez la console.");
+                // Force quand même le changement de page pour ne pas bloquer l'utilisateur
+                showPage('summary');}}
+
+        function exportExcel() {
+            // 1. Synthèse avec les choix de Toss 1MT et 2MT
+            const synthese = [
+                { "Catégorie": "MATCH", "Valeur": `${state.h.name} vs ${state.v.name}` },
+                { "Catégorie": "SCORE FINAL", "Valeur": `${state.h.score} - ${state.v.score}` },
+                { "Catégorie": "TOSS 1MT", "Valeur": `${state[tossData.winner].name} gagne, choix: ${tossData.winnerChoice}` },
+                { "Catégorie": "TOSS 2MT", "Valeur": state.logs.find(l => l.Type === "TOSS 2MT")?.Choix || "N/A" },
+                { "Catégorie": "Heures", "Valeur": `Début: ${matchTimes.start} / Fin: ${matchTimes.end}` }];
+            // 2. Traitement des logs pour séparer CNS et Expulsion
+            const detailedLogs = state.logs.map(l => {
+                const teamKey = l.Equipe === state.h.name ? 'h' : 'v';
+                const isExpulsion = (l.Faute === "DSQ" || l.Faute === "FGT" || (state[teamKey].cns[l.Joueur] >= 2));
+                return {
+                    QT: l.QT,
+                    Temps: l.Temps || "-",
+                    Type: l.Type,
+                    Equipe: l.Equipe,
+                    Action: l.Faute || l.Action || "-",
+                    Joueur: l.Joueur,
+                    "CNS (1ère)": (l.Type === "FAUTE" && !isExpulsion) ? "1" : "",
+                    "EXPULSION": isExpulsion ? "OUI" : ""};});
+            // 3. Tri du journal : Temps Mort, puis Score, puis Fautes
+            const ordre = { "TEMPS MORT": 1, "SCORE": 2, "FAUTE": 3 };
+            detailedLogs.sort((a, b) => (ordre[a.Type] || 9) - (ordre[b.Type] || 9));
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(synthese), "Synthèse Match");
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(detailedLogs), "JournalDétails");
+            XLSX.writeFile(wb, `Rapport_${state.h.name}_${state.v.name}.xlsx`);}
+                
+        function resetFullApp() {
+            if (!confirm("Attention : cela effacera toutes les données du match actuel. Continuer ?")) return;
+            // 1. Réinitialisation du Temps
+            stopMatchTimer();
+            stopPlayClock();
+            matchTimes = { start: null, endMT1: null, startMT2: null, end: null };
+            // 2. Réinitialisation de l'État
+            state.h = { name: "LOCAL", score: 0, cns: {} };
+            state.v = { name: "VISITEUR", score: 0, cns: {} };
+            state.qt = 1;
+            state.currentTime = 12 * 60;
+            state.logs = [];
+            state.pending = null;
+            tossData = { winner: null, choice: null, call: null, winnerChoice: null, loserChoice: null, htFirstChooser: null, htFirstChoice: null };
+            
+            // 3. Réinitialisation de l'Interface (DOM)
+            document.getElementById('score-h').innerText = "0";
+            document.getElementById('score-v').innerText = "0";
+            document.getElementById('timer-display').innerText = "12:00";
+            document.getElementById('play-clock').innerText = "40";
+            document.getElementById('qt-label').innerText = "QT 1";
+            document.getElementById('in-h-name').value = "";
+            document.getElementById('in-v-name').value = "";
+            document.querySelectorAll('[id^="label-to-"]').forEach(label => label.remove());
+            document.getElementById('timer-display').onclick = function() { openModal('timer-edit'); };
+            // Vider les CNS et Timeouts visuels
+            document.getElementById('cns-h').innerHTML = "";
+            document.getElementById('cns-v').innerHTML = "";
+            resetTOs();
+            // Réinitialiser l'affichage visuel du Toss
+            const selectorLabel = document.getElementById('toss-current-selector');
+            if (selectorLabel) {
+                selectorLabel.innerText = "Qui a gagné le Toss ?";
+                selectorLabel.classList.remove('text-blue-400');
+                selectorLabel.classList.add('text-yellow-500');}
+            const choicesDiv = document.querySelector('#toss-choices .grid');
+            if (choicesDiv) {
+                choicesDiv.innerHTML = `
+                    <button onclick="pickTossWinner('h')" id="btn-toss-h" class="bg-zinc-800 py-6 rounded-xl font-black text-white border-2 border-zinc-700">DOMICILE</button>
+                    <button onclick="pickTossWinner('v')" id="btn-toss-v" class="bg-zinc-800 py-6 rounded-xl font-black text-white border-2 border-zinc-700">EXTÉRIEUR</button>`;}
+                    // Retour à la première page
+            showPage('setup');} 
+
+         function exitModal() {
+            const modal = document.getElementById('credits-modal');
+            if (modal) {
+                modal.style.display = 'none';}
+            if (confirm("Avez-vous tout compris? Sinon contactez Volny MOGET.")) {
+                resetFullApp(); 
+                showPage('setup');}} 
+
+    window.onload = () => {
+    populateFouls(); // Cette ligne remplit le menu déroulant
+    if (window.lucide) lucide.createIcons();
+    showPage('setup');
+};
+  </script> 
+  </body>
+</html>
