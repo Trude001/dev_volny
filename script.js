@@ -1,13 +1,21 @@
 document.addEventListener('DOMContentLoaded', () => {
     // 1. Menu Burger
     const burger = document.getElementById('burger-menu');
-    const nav = document.getElementById('nav-links');
+    const navLinks = document.getElementById('nav-links');
+    const links = document.querySelectorAll('.nav-links a');
 
-    if (burger) {
-        burger.addEventListener('click', () => {
-            nav.classList.toggle('active');
-        });
-    }
+   burger.addEventListener('click', () => {
+    navLinks.classList.toggle('active');
+    burger.classList.toggle('active'); });
+
+    links.forEach(link => {
+        link.addEventListener('click', () => {
+            // On retire la classe active pour cacher le menu
+            navLinks.classList.remove('active');
+            // On remet le bouton burger dans son état initial
+            burger.classList.remove('active'); 
+        }); 
+    });
 
     // 2. Animation des Skills
     const skillBars = document.querySelectorAll('.progress-line span');
@@ -35,6 +43,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (role && roles[role]) {
         document.title = roles[role].title;
         const h1 = document.querySelector('.hero-text h1');
-        if (h1) h1.innerHTML = roles[role].h1;
+        if (h1) h1.innerContent = roles[role].h1;
     }
 });
